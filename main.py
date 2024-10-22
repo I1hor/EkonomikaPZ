@@ -132,9 +132,9 @@ class COCOMOApp(QWidget):
                         EAF *= float(selected_button.text())
 
                 PM = cocomo_intermediate(size, a, b, EAF)
-                TM = EAF * (c * (PM ** d))
-                SS = EAF * PM / TM
-                P = EAF * size / PM
+                TM = c * (PM ** d)
+                SS = PM / TM
+                P = size / PM
 
                 self.result_label.setText(f'Тип проєкту: {project_type}\n'
                                           f'EAF: {EAF:.2f}\n'
