@@ -1,86 +1,116 @@
 import sys
-from PyQt5.QtWidgets import QApplication, QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QComboBox, QRadioButton, \
-    QButtonGroup, QHBoxLayout
 
-COEFFICIENTS = {
-    "Органічний": (2.4, 1.05, 2.5, 0.38),
-    "Напіврозділений": (3.0, 1.12, 2.5, 0.35),
-    "Вбудований": (3.6, 1.20, 2.5, 0.32)
-}
+from PyQt5.QtGui import QTextLine
+from PyQt5.QtWidgets import QWidget, QApplication, QStackedWidget, QVBoxLayout, QPushButton, QLabel, QLineEdit, \
+    QComboBox, QButtonGroup, QHBoxLayout, QRadioButton
+from coefficients import COEFFICIENTS, ATTRIBUTES, EARLY_DESIGN_MULTIPLIERS, EFFORT_MULTIPLIERS, SCALE_FACTORS
 
-ATTRIBUTES = {
-    "Необхідна надійність ПЗ (RELY)": [0.75, 0.88, 1.00, 1.15, 1.40, None],
-    "Розмір БД додатка (DATA)": [None, 0.94, 1.00, 1.08, 1.16, None],
-    "Складність продукту (CPLX)": [0.70, 0.85, 1.00, 1.15, 1.30, 1.65],
+class MainWindow(QWidget):
 
-    "Обмеження швидкодії при виконанні програми (TIME)": [None, None, 1.00, 1.11, 1.30, 1.66],
-    "Обмеження пам'яті (STOR)": [None, None, 1.00, 1.06, 1.21, 1.56],
-    "Нестійкість оточення віртуальної машини (VIRT)": [None, 0.87, 1.00, 1.15, 1.30, None],
-    "Необхідний час відновлення (TURN)": [None, 0.87, 1.00, 1.07, 1.15, None],
-
-    "Аналітичні здібності (ACAP)": [1.46, 1.19, 1.00, 0.86, 0.71, None],
-    "Досвід розробки (AEXP)": [1.29, 1.13, 1.00, 0.91, 0.82, None],
-    "Здібності до розробки ПЗ (PCAP)": [1.42, 1.17, 1.00, 0.86, 0.70, None],
-    "Досвід використання віртуальних машин (VEXP)": [1.21, 1.10, 1.00, 0.90, None, None],
-    "Досвід розробки на мовах програмування (LEXP)": [1.14, 1.07, 1.00, 0.95, None, None],
-
-    "Застосування методів розробки ПЗ (MODP)": [1.24, 1.10, 1.00, 0.91, 0.82, None],
-    "Використання інструментарію розробки ПЗ (TOOL)": [1.24, 1.10, 1.00, 0.91, 0.83, None],
-    "Вимоги дотримання графіка розробки (SCED)": [1.23, 1.08, 1.00, 1.04, 1.10, None]
-}
-
-def cocomo_basic(size, a, b, c, d):
-    PM = a * (size ** b)
-    TM = c * (PM ** d)
-    SS = PM / TM
-    P = size / PM
-    return PM, TM, SS, P
-
-def cocomo_intermediate(size, a, b, EAF):
-    PM = EAF * a * (size ** b)
-    return PM
-
-class COCOMOApp(QWidget):
     def __init__(self):
         super().__init__()
-        self.initUI()
 
-    def initUI(self):
+
         layout = QVBoxLayout()
+        self.stacked_widgets = QStackedWidget()
 
-        self.label_size = QLabel('KLOC:')
-        self.input_size = QLineEdit(self)
+        self.button_cocomo1 = QPushButton('COCOMO 1')
+        self.button_cocomo2 = QPushButton('COCOMO 2')
+        self.button_cocomo1.clicked.connect(lambda: self.stacked_widgets.setCurrentIndex(0))
+        self.button_cocomo2.clicked.connect(lambda: self.stacked_widgets.setCurrentIndex(1))
 
-        self.label_project_type = QLabel('Тип проєкту:')
-        self.combo_project_type = QComboBox(self)
-        self.combo_project_type.addItems(COEFFICIENTS.keys())
+        self.stacked_widgets.addWidget(self.cocomo_i_page())
+        self.stacked_widgets.addWidget(self.cocomo_ii_page())
 
-        self.label_level = QLabel('Рівень моделі:')
-        self.combo_level = QComboBox(self)
-        self.combo_level.addItems(['Базовий', 'Проміжний'])
-        self.combo_level.currentTextChanged.connect(self.toggle_intermediate)
+        layout.addWidget(self.button_cocomo1)
+        layout.addWidget(self.button_cocomo2)
+        layout.addWidget(self.stacked_widgets)
 
-        self.button_calculate = QPushButton('Розрахувати')
-        self.button_calculate.clicked.connect(self.calculate)
+        self.setLayout(layout)
+        self.show()
 
-        self.result_label = QLabel('Результати з\'являться тут')
 
-        layout.addWidget(self.label_size)
-        layout.addWidget(self.input_size)
-        layout.addWidget(self.label_project_type)
-        layout.addWidget(self.combo_project_type)
-        layout.addWidget(self.label_level)
-        layout.addWidget(self.combo_level)
+    def cocomo_i_page(self):
 
-        self.intermediate_attributes_layout = QVBoxLayout()
-        self.button_groups = []
+        page = QWidget()
+        layout = QVBoxLayout()
+        layout.addWidget(QLabel("Кількість рядків (тисяч)"))
+        self.text = QLineEdit()
+        layout.addWidget(self.text)
 
-        for attr_name, values in ATTRIBUTES.items():
+
+        self.modes = QComboBox()
+        self.modes.addItems(["Органічний", "Напіврозділений", "Вбудований"])
+        layout.addWidget(self.modes)
+        self.models = QComboBox()
+        self.models.addItems(["Базова модель", "Проміжна модель"])
+        self.models.currentIndexChanged.connect(self.loading_radio_buttons_cocomo_i)
+        layout.addWidget(self.models)
+        self.labelRes = QLabel()
+        layout.addWidget(self.labelRes)
+
+        calculateBtn = QPushButton("Розрахувати")
+        layout.addWidget(calculateBtn)
+        calculateBtn.clicked.connect(self.calculate_cocomo_i)
+
+        self.intermediate_attr = QVBoxLayout()
+        layout.addLayout(self.intermediate_attr)
+
+        page.setLayout(layout)
+        return page
+
+    def calculate_basic_cocomo_i(self, size, a, b, c, d):
+        PM = a * (size ** b)
+        TM = c * (PM ** d)
+        SS = PM / TM
+        P = size / PM
+        return PM, TM, SS, P
+
+    def cocomo_i_intermediate(self, size, a, b, EAF):
+        PM = EAF * a * (size ** b)
+        return PM
+
+    def calculate_cocomo_i(self):
+        try:
+            size = float(self.text.text())
+            a, b, c , d = COEFFICIENTS[self.modes.currentText()]
+
+            if self.models.currentText() == "Базова модель":
+                PM, TM, SS, P = self.calculate_basic_cocomo_i(size, a, b, c, d)
+                self.labelRes.setText(f"PM: {PM:.2f}\n"
+                                      f"TM: {TM:.2f}\n"
+                                      f"SS: {SS:.2f}\n"
+                                      f"P: {P:.2f}")
+            else:
+                EAF = 1.0
+                for i, group in enumerate(self.buttons_group):
+                    selected_button = group.checkedButton()
+                    if selected_button:
+                        EAF *= float(selected_button.text())
+
+                PM = self.cocomo_i_intermediate(size, a, b, EAF)
+                TM = c * (PM ** d)
+                SS = PM / TM
+                P = size / PM
+
+                self.labelRes.setText(f'EAF: {EAF:.2f}\n'
+                                          f'Tрудовитрати (PM): {PM:.2f}\n'
+                                          f'Час розробки (TM): {TM:.2f}\n'
+                                          f'Середня чисельність (SS): {SS:.2f}\n'
+                                          f'Продуктивність (P): {P:.2f}')
+        except Exception as e:
+            self.labelRes.setText(f"Помилка {e}")
+
+    def loading_radio_buttons_cocomo_i(self):
+
+        self.buttons_group = []
+
+        for attr, values in ATTRIBUTES.items():
             attr_layout = QHBoxLayout()
-            attr_label = QLabel(attr_name)
+            attr_label = QLabel(attr)
             attr_layout.addWidget(attr_label)
             button_group = QButtonGroup(self)
-            self.button_groups.append(button_group)
+            self.buttons_group.append(button_group)
 
             for value in values:
                 if value is not None:
@@ -88,65 +118,192 @@ class COCOMOApp(QWidget):
                     button_group.addButton(radio_button)
                     attr_layout.addWidget(radio_button)
 
-            self.intermediate_attributes_layout.addLayout(attr_layout)
+            self.intermediate_attr.addLayout(attr_layout)
 
-        layout.addLayout(self.intermediate_attributes_layout)
-        layout.addWidget(self.button_calculate)
-        layout.addWidget(self.result_label)
+    def cocomo_ii_page(self):
 
-        self.setLayout(layout)
-        self.toggle_intermediate('Базовий')
-        self.setWindowTitle('COCOMO Model')
-        self.show()
+        page = QWidget()
+        main_layout = QVBoxLayout()
 
-    def toggle_intermediate(self, level):
-        for i in range(self.intermediate_attributes_layout.count()):
-            item = self.intermediate_attributes_layout.itemAt(i)
-            if isinstance(item, QHBoxLayout):
+        main_layout.addWidget(QLabel("Кількість рядків (тисяч):"))
+        self.lineText = QLineEdit()
+        main_layout.addWidget(self.lineText)
+        self.models_2 = QComboBox()
+        self.models_2.addItems(["Early Design", "Post Architecture"])
+        main_layout.addWidget(self.models_2)
+        self.models_2.currentIndexChanged.connect(self.loading_cocomo_ii_buttons)
 
-                for j in range(item.count()):
-                    widget = item.itemAt(j).widget()
-                    if widget:
-                        widget.setVisible(level == 'Проміжний')
+        self.main_buttons_layout = QVBoxLayout()
 
-    def calculate(self):
+
+        main_layout.addLayout(self.main_buttons_layout)
+        self.scale_layout = QVBoxLayout()
+
+        self.scale_layout.addWidget(QLabel("Scale Factors"))
+
+        main_layout.addLayout(self.scale_layout)
+
+
+
+        self.loading_scale_factors_buttons_ii()
+        self.loading_cocomo_ii_buttons()
+        calculate_btn = QPushButton("Розрахувати")
+        main_layout.addWidget(calculate_btn)
+        calculate_btn.clicked.connect(self.calculate_cocomo_ii)
+
+        stacked_widgets = QStackedWidget()
+
+        self.labelRes2 = QLabel()
+        main_layout.addWidget(self.labelRes2)
+
+
+        page.setLayout(main_layout)
+        return page
+
+    def loading_cocomo_ii_buttons(self):
+        # Очистка попередніх кнопок та вкладених лейаутів
+        def clear_layout(layout):
+            while layout.count():
+                item = layout.takeAt(0)
+                if item.widget() is not None:
+                    item.widget().deleteLater()
+                elif item.layout() is not None:
+                    clear_layout(item.layout())
+
+        clear_layout(self.main_buttons_layout)
+
+        if self.models_2.currentText() == "Early Design":
+            self.buttons_group2 = []
+            for attr, values in EARLY_DESIGN_MULTIPLIERS.items():
+                attr_layout = QHBoxLayout()
+                attr_layout.addWidget(QLabel(attr))
+                button_group = QButtonGroup(self)
+                self.buttons_group2.append(button_group)
+
+                for value in values:
+                    if value is not None:
+                        radio_button = QRadioButton(str(value))
+                        button_group.addButton(radio_button)
+                        attr_layout.addWidget(radio_button)
+                self.main_buttons_layout.addLayout(attr_layout)
+        else:
+            self.buttons_group3 = []
+            for attr, values in EFFORT_MULTIPLIERS.items():
+                attr_layout = QHBoxLayout()
+                attr_layout.addWidget(QLabel(attr))
+                button_group = QButtonGroup(self)
+                self.buttons_group3.append(button_group)
+
+                for value in values:
+                    if value is not None:
+                        radio_button = QRadioButton(str(value))
+                        button_group.addButton(radio_button)
+                        attr_layout.addWidget(radio_button)
+                self.main_buttons_layout.addLayout(attr_layout)
+
+    def loading_scale_factors_buttons_ii(self):
+        self.buttons_group4 = []
+        for attr, values in SCALE_FACTORS.items():
+            attr_layout = QHBoxLayout()
+            attr_layout.addWidget(QLabel(attr))
+            button_group = QButtonGroup(self)
+            self.buttons_group4.append(button_group)
+
+            for value in values:
+                if value is not None:
+                    radio_button = QRadioButton(str(value))
+                    button_group.addButton(radio_button)
+                    attr_layout.addWidget(radio_button)
+            self.scale_layout.addLayout(attr_layout)
+
+    def calculate_cocomo_ii(self):
         try:
-            project_type = self.combo_project_type.currentText()
-            level = self.combo_level.currentText()
+            # Отримання розміру проекту в KSLOC
+            size = float(self.lineText.text())
 
-            a, b, c, d = COEFFICIENTS[project_type]
-            size = float(self.input_size.text())
+            if self.models_2.currentText() == "Early Design":
+                # Константи для "Early Design"
+                A = 2.94
+                B = 0.91
+                C = 3.67
+                D = 0.28
 
-            if level == 'Базовий':
-                PM, TM, SS, P = cocomo_basic(size, a, b, c, d)
-                self.result_label.setText(f'Тип проєкту: {project_type}\n'
-                                          f'Tрудовитрати (PM): {PM:.2f}\n'
-                                          f'Час розробки (TM): {TM:.2f}\n'
-                                          f'Середня чисельність (SS): {SS:.2f}\n'
-                                          f'Продуктивність (P): {P:.2f}')
-            else:
+                # Обчислення EAF (Effort Adjustment Factor) для "Early Design"
                 EAF = 1.0
-                for i, group in enumerate(self.button_groups):
+                for group in self.buttons_group2:
                     selected_button = group.checkedButton()
                     if selected_button:
                         EAF *= float(selected_button.text())
 
-                PM = cocomo_intermediate(size, a, b, EAF)
-                TM = c * (PM ** d)
-                SS = PM / TM
-                P = size / PM
+                # Розрахунок суми значень SF для експоненти E
+                SF_sum = sum(
+                    float(group.checkedButton().text()) for group in self.buttons_group4 if group.checkedButton()
+                )
 
-                self.result_label.setText(f'Тип проєкту: {project_type}\n'
-                                          f'EAF: {EAF:.2f}\n'
-                                          f'Tрудовитрати (PM): {PM:.2f}\n'
-                                          f'Час розробки (TM): {TM:.2f}\n'
-                                          f'Середня чисельність (SS): {SS:.2f}\n'
-                                          f'Продуктивність (P): {P:.2f}')
+                # Розрахунок експоненти E
+                E = B + 0.01 * SF_sum
+
+                # Розрахунок трудомісткості (PM)
+                PM = EAF * A * (size ** E)
+
+                # Розрахунок часу (TM) з множником SCED
+                SCED = 1.0  # Стандартне значення SCED
+                selected_sced_button = self.buttons_group2[-1].checkedButton()  # Остання група - SCED
+                if selected_sced_button:
+                    SCED = float(selected_sced_button.text())
+
+                TM = C * (PM ** (D + 0.2 * (SCED - 1)))
+
+                # Відображення результатів
+                self.labelRes2.setText(f'EAF: {EAF:.2f}\n'
+                                       f'PM: {PM:.2f} людино-місяців\n'
+                                       f'TM: {TM:.2f} місяців')
+
+            elif self.models_2.currentText() == "Post Architecture":
+                # Константи для "Post Architecture"
+                A = 2.45
+                B = 0.91
+                C = 3.67
+                D = 0.28
+
+                # Обчислення EAF для "Post Architecture"
+                EAF = 1.0
+                for group in self.buttons_group3:
+                    selected_button = group.checkedButton()
+                    if selected_button:
+                        EAF *= float(selected_button.text())
+
+                # Розрахунок суми значень SF для експоненти E
+                SF_sum = sum(
+                    float(group.checkedButton().text()) for group in self.buttons_group4 if group.checkedButton()
+                )
+
+                # Розрахунок експоненти E
+                E = B + 0.01 * SF_sum
+
+                # Розрахунок трудомісткості (PM) без SCED
+                PM_NS = EAF * A * (size ** E)
+
+                # Розрахунок часу (TM) з урахуванням SCED
+                SCED = 1.0  # Стандартне значення SCED
+                selected_sced_button = self.buttons_group3[-1].checkedButton()  # Остання група - SCED
+                if selected_sced_button:
+                    SCED = float(selected_sced_button.text())
+
+                TM = SCED * C * (PM_NS ** (D + 0.2 * (E - B)))
+
+                # Відображення результатів
+                self.labelRes2.setText(f'EAF: {EAF:.2f}\n'
+                                       f'PM: {PM_NS:.2f} людино-місяців\n'
+                                       f'TM: {TM:.2f} місяців')
 
         except Exception as e:
-            self.result_label.setText(f'Виникла помилка: {str(e)}')
+            self.labelRes2.setText(f"Помилка {e}")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
+
     app = QApplication(sys.argv)
-    ex = COCOMOApp()
-    sys.exit(app.exec_())
+    wind = MainWindow()
+    wind.show()
+    app.exec_()
